@@ -3,6 +3,7 @@ require 'nokogiri'
 require 'microdata'
 require 'rubberband'
 require 'springboard'
+require 'pry'
 
 sitemap_index = open(ARGV[0]).read
 
@@ -25,9 +26,15 @@ Nokogiri::HTML(sitemap_index).xpath('//loc').each do |sitemap_loc|
     open(url) do |f|
       items = Microdata::Document.new(f, url).extract_items
       items.each do |item|
-        puts JSON.pretty_generate(item.to_hash)
+        item_hash = item.to_hash
+        types = item_hash[:type].map{|itemtype| itemtype.sub('http://schema.org/', '') }.join('AND')
+        item_hash[:id] = types + '--' + url
+        if item_hash[:properties]
+          item_hash[:itemprops] = item_hash[:properties].keys 
+        end
+        puts JSON.pretty_generate(item_hash)
         begin # sometimes the data isn't to ES's liking--like values that are empty strings
-          es_client.index(item.to_hash.merge(:url => url)) 
+          es_client.index(item_hash.merge(:url => url)) 
           indexed_resources += 1
         rescue
         end       
